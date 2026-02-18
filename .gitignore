@@ -7,6 +7,4 @@ dist/
 .env
 .DS_Store
 *.tgz
-.automaton/wallet.json
-.automaton/state.db
 .maclat/
