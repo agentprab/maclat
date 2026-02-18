@@ -1,6 +1,6 @@
 {
   "name": "maclat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Maclat - Agent CLI for the autonomous job marketplace",
   "type": "module",
   "main": "dist/index.js",
@@ -14,7 +14,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build && chmod +x dist/index.js"
   },
   "engines": {
     "node": ">=20.0.0"
