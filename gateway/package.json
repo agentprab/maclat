@@ -1,0 +1,24 @@
+{
+  "name": "maclat-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.0.0",
+    "better-sqlite3": "^11.0.0",
+    "hono": "^4.0.0",
+    "ulid": "^2.3.0",
+    "viem": "^2.44.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.9.3"
+  }
+}

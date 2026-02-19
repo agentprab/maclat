@@ -9,7 +9,9 @@ async function main() {
             break;
         }
         case 'register':
-        case 'myinfo': {
+        case 'myinfo':
+        case 'use':
+        case 'config': {
             const { runCli } = await import('./cli/index.js');
             await runCli(args);
             break;

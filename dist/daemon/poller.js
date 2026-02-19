@@ -1,11 +1,13 @@
 import { POLL_INTERVAL_MS, JOBS_DIR } from '../shared/config.js';
 import { join } from 'path';
+import { bold, dim, gray, toolPill, fileWrite as fmtFileWrite, agentText, jobFound, jobDone, jobError, } from './format.js';
 export class JobPoller {
     gatewayUrl;
     agentId;
     executor;
     running = false;
     currentJobId = null;
+    idleInterval = null;
     constructor(gatewayUrl, agentId, executor) {
         this.gatewayUrl = gatewayUrl;
         this.agentId = agentId;
@@ -13,7 +15,7 @@ export class JobPoller {
     }
     async start() {
         this.running = true;
-        console.log(`  Watching for jobs... (polling every ${POLL_INTERVAL_MS / 1000}s)\n`);
+        this.startIdleAnimation();
         while (this.running) {
             try {
                 if (!this.currentJobId) {
@@ -22,13 +24,33 @@ export class JobPoller {
             }
             catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
-                console.log(`  [error] Poll failed: ${msg}`);
+                console.log(jobError(`Poll failed: ${msg}`));
             }
             await sleep(POLL_INTERVAL_MS);
         }
     }
     stop() {
         this.running = false;
+        this.stopIdleAnimation();
+    }
+    startIdleAnimation() {
+        const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+        let i = 0;
+        this.idleInterval = setInterval(() => {
+            if (!this.currentJobId) {
+                process.stdout.write(`\r  ${gray(frames[i % frames.length])} ${dim('Watching for jobs...')}  `);
+                i++;
+            }
+        }, 100);
+    }
+    stopIdleAnimation() {
+        if (this.idleInterval) {
+            clearInterval(this.idleInterval);
+            this.idleInterval = null;
+        }
+    }
+    clearIdleLine() {
+        process.stdout.write('\r' + ' '.repeat(50) + '\r');
     }
     async pollForJobs() {
         const res = await fetch(`${this.gatewayUrl}/jobs/available`);
@@ -37,18 +59,16 @@ export class JobPoller {
         const jobs = (await res.json());
         if (jobs.length === 0)
             return;
-        // Take the first available job
         const job = jobs[0];
-        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-        console.log(`  [${time}] Found job: "${job.title}" (${job.budget_usdc} USDC)`);
+        this.clearIdleLine();
+        console.log(jobFound(job.title, job.budget_usdc));
         await this.executeJob(job);
     }
     async executeJob(job) {
         this.currentJobId = job.id;
-        const time = () => new Date().toLocaleTimeString('en-US', { hour12: false });
         try {
             // 1. Claim the job
-            console.log(`  [${time()}] Claiming...`);
+            console.log(`  ${dim('Claiming job...')}`);
             const claimRes = await fetch(`${this.gatewayUrl}/jobs/${job.id}/claim`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -56,18 +76,47 @@ export class JobPoller {
             });
             if (!claimRes.ok) {
                 const err = (await claimRes.json());
-                console.log(`  [${time()}] Failed to claim: ${err.error}`);
+                console.log(jobError(`Failed to claim: ${err.error}`));
                 this.currentJobId = null;
                 return;
             }
             // 2. Signal work started
-            console.log(`  [${time()}] Starting work...`);
+            console.log(`  ${bold('Starting work...')}`);
             await fetch(`${this.gatewayUrl}/jobs/${job.id}/start`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
             });
-            // 3. Set up progress relay
+            console.log('');
+            // 3. Set up progress relay (POST to gateway + pretty terminal output)
             const onUpdate = async (type, content) => {
+                // Terminal output
+                if (type === 'terminal') {
+                    // Parse "ToolName: target" format
+                    const colonIdx = content.indexOf(':');
+                    if (colonIdx > 0) {
+                        const name = content.slice(0, colonIdx).trim();
+                        const target = content.slice(colonIdx + 1).trim().slice(0, 60);
+                        console.log(toolPill(name, target));
+                    }
+                    else {
+                        console.log(toolPill(content, ''));
+                    }
+                }
+                else if (type === 'file_write') {
+                    try {
+                        const data = JSON.parse(content);
+                        console.log(fmtFileWrite(data.path));
+                    }
+                    catch {
+                        console.log(fmtFileWrite(content));
+                    }
+                }
+                else if (type === 'text') {
+                    // Truncate long text, show first line only
+                    const firstLine = content.split('\n')[0].slice(0, 120);
+                    console.log(agentText(firstLine));
+                }
+                // Gateway relay
                 try {
                     await fetch(`${this.gatewayUrl}/jobs/${job.id}/updates`, {
                         method: 'POST',
@@ -76,15 +125,39 @@ export class JobPoller {
                     });
                 }
                 catch {
-                    // Non-critical, don't crash on failed update
+                    // Non-critical
                 }
             };
-            // 4. Execute the job
-            console.log(`  [${time()}] Spawning claude...\n`);
+            // 4. Set up interactivity (instruction injection)
+            const interactivity = {
+                getInstructions: async () => {
+                    try {
+                        const res = await fetch(`${this.gatewayUrl}/jobs/${job.id}/instructions?status=pending`);
+                        if (!res.ok)
+                            return [];
+                        return await res.json();
+                    }
+                    catch {
+                        return [];
+                    }
+                },
+                markDelivered: async (id) => {
+                    try {
+                        await fetch(`${this.gatewayUrl}/jobs/${job.id}/instructions/${id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: 'delivered' }),
+                        });
+                    }
+                    catch { /* non-critical */ }
+                },
+            };
+            // 5. Execute the job
             const workDir = join(JOBS_DIR, job.id);
-            const result = await this.executor.execute(job, workDir, onUpdate);
-            // 5. Deliver results
-            console.log(`\n  [${time()}] Job ${result.success ? 'completed' : 'finished'}. Delivering files...`);
+            const result = await this.executor.execute(job, workDir, onUpdate, interactivity);
+            // 6. Deliver results
+            console.log('');
+            console.log(`  ${dim('Delivering')} ${bold(String(result.files.length))} ${dim('files...')}`);
             const deliverRes = await fetch(`${this.gatewayUrl}/jobs/${job.id}/deliver`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -95,19 +168,19 @@ export class JobPoller {
                 }),
             });
             if (deliverRes.ok) {
-                console.log(`  [${time()}] Deliverables sent (${result.files.length} files).`);
+                console.log(jobDone(`${result.files.length} files delivered`));
             }
             else {
-                console.log(`  [${time()}] Failed to send deliverables.`);
+                console.log(jobError('Failed to send deliverables.'));
             }
         }
         catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            console.log(`  [error] Job execution failed: ${msg}`);
+            console.log(jobError(`Job execution failed: ${msg}`));
         }
         finally {
             this.currentJobId = null;
-            console.log(`\n  Back to watching for jobs...\n`);
+            console.log('');
         }
     }
 }

@@ -1,6 +1,7 @@
 import { loadConfig, GATEWAY_URL } from '../shared/config.js';
-import { ClaudeCodeExecutor } from './executor.js';
+import { createExecutor } from './executors/index.js';
 import { JobPoller } from './poller.js';
+import { bold, purple, gray, box, red } from './format.js';
 export async function startDaemon(args) {
     const config = loadConfig();
     const agentId = getFlag(args, '--id') || config.agent_id;
@@ -17,19 +18,24 @@ export async function startDaemon(args) {
             throw new Error(`HTTP ${res.status}`);
     }
     catch {
-        console.log(`Cannot reach gateway at ${gatewayUrl}`);
+        console.log(`\n  ${red('✗')} Cannot reach gateway at ${gatewayUrl}\n`);
         process.exit(1);
     }
-    console.log(`\n  Maclat Agent Daemon`);
-    console.log(`  ──────────────────────────`);
-    console.log(`  Agent ID: ${agentId}`);
-    console.log(`  Gateway:  ${gatewayUrl}`);
-    console.log(`  ──────────────────────────\n`);
-    const executor = new ClaudeCodeExecutor();
+    const executorType = config.executor || 'claude-code';
+    const bannerLines = [
+        `${bold(purple('Maclat Agent'))}`,
+        ``,
+        `${gray('Agent ID:')}  ${agentId.slice(0, 16)}...`,
+        `${gray('Executor:')}  ${bold(executorType)}`,
+        ...(config.model ? [`${gray('Model:')}     ${config.model}`] : []),
+        `${gray('Gateway:')}   ${gatewayUrl}`,
+    ];
+    console.log('\n' + box(bannerLines) + '\n');
+    const executor = createExecutor(config);
     const poller = new JobPoller(gatewayUrl, agentId, executor);
     // Graceful shutdown
     process.on('SIGINT', () => {
-        console.log('\n  Shutting down agent daemon...');
+        console.log(`\n  ${gray('Shutting down agent daemon...')}`);
         poller.stop();
         process.exit(0);
     });

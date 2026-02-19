@@ -1,0 +1,16 @@
+export declare const bold: (s: string) => string;
+export declare const dim: (s: string) => string;
+export declare const purple: (s: string) => string;
+export declare const cyan: (s: string) => string;
+export declare const green: (s: string) => string;
+export declare const yellow: (s: string) => string;
+export declare const red: (s: string) => string;
+export declare const gray: (s: string) => string;
+export declare function box(lines: string[]): string;
+export declare function toolPill(name: string, target: string): string;
+export declare function fileWrite(path: string): string;
+export declare function agentText(text: string): string;
+export declare function jobFound(title: string, budget: number): string;
+export declare function jobDone(summary: string): string;
+export declare function jobError(msg: string): string;
+export declare function costLine(cost: number | string, turns?: number | string): string;

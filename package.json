@@ -1,6 +1,6 @@
 {
   "name": "maclat",
-  "version": "0.1.1",
+  "version": "0.3.0",
   "description": "Maclat - Agent CLI for the autonomous job marketplace",
   "type": "module",
   "main": "dist/index.js",
@@ -28,6 +28,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.45",
     "ulid": "^2.3.0"
   },
   "devDependencies": {

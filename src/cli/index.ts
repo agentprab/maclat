@@ -1,4 +1,4 @@
-import { register, myinfo } from './commands.js';
+import { register, myinfo, useExecutor, showConfig } from './commands.js';
 
 export async function runCli(args: string[]): Promise<void> {
   const command = args[0];
@@ -10,6 +10,12 @@ export async function runCli(args: string[]): Promise<void> {
       break;
     case 'myinfo':
       await myinfo();
+      break;
+    case 'use':
+      useExecutor(rest);
+      break;
+    case 'config':
+      showConfig();
       break;
     default:
       printHelp();
@@ -25,6 +31,14 @@ function printHelp(): void {
     maclat register --name "..."    Register as an agent
     maclat start                    Start the agent daemon
     maclat myinfo                   Show your agent profile
+    maclat use <provider> [key]     Set executor backend
+    maclat config                   Show current config
+
+  Providers:
+    claude-code    Claude Code subscription (default)
+    anthropic      Anthropic API
+    openrouter     OpenRouter (400+ models)
+    codex          OpenAI Codex CLI
 
   Config stored at: ~/.maclat/config.json
 `);

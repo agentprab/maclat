@@ -33,8 +33,13 @@ export interface Deliverable {
     summary: string;
     created_at: string;
 }
+export type ExecutorType = 'claude-code' | 'anthropic' | 'openrouter' | 'codex';
 export interface MaclatConfig {
     agent_id?: string;
     agent_name?: string;
     gateway_url: string;
+    executor?: ExecutorType;
+    api_key?: string;
+    model?: string;
+    max_turns?: number;
 }

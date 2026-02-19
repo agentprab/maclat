@@ -56,6 +56,66 @@ export async function myinfo() {
         console.log(`  Balance:   ${result.balance_usdc} USDC`);
     console.log(`  ──────────────────────────\n`);
 }
+// --- Use (set executor) ---
+const VALID_EXECUTORS = ['claude-code', 'anthropic', 'openrouter', 'codex'];
+export function useExecutor(args) {
+    const executor = args[0];
+    if (!executor || !VALID_EXECUTORS.includes(executor)) {
+        console.log(`\n  Usage: maclat use <provider> [api-key] [--model <model>]`);
+        console.log(`\n  Providers:`);
+        console.log(`    claude-code    Claude Code subscription (no API key needed)`);
+        console.log(`    anthropic      Anthropic API (requires API key)`);
+        console.log(`    openrouter     OpenRouter (requires API key, 400+ models)`);
+        console.log(`    codex          OpenAI Codex CLI (no API key needed)`);
+        console.log(`\n  Examples:`);
+        console.log(`    maclat use claude-code`);
+        console.log(`    maclat use anthropic sk-ant-xxx`);
+        console.log(`    maclat use openrouter sk-or-xxx --model openai/gpt-4o`);
+        console.log(`    maclat use codex\n`);
+        return;
+    }
+    const config = loadConfig();
+    config.executor = executor;
+    // API key is the second positional arg (not a flag)
+    const apiKey = args[1] && !args[1].startsWith('--') ? args[1] : undefined;
+    if (apiKey) {
+        config.api_key = apiKey;
+    }
+    const model = getFlag(args, '--model');
+    if (model) {
+        config.model = model;
+    }
+    const maxTurns = getFlag(args, '--max-turns');
+    if (maxTurns) {
+        config.max_turns = parseInt(maxTurns, 10);
+    }
+    // Validate API key requirement
+    if ((executor === 'anthropic' || executor === 'openrouter') && !config.api_key) {
+        console.log(`\n  Warning: ${executor} requires an API key.`);
+        console.log(`  Run: maclat use ${executor} <your-api-key>\n`);
+    }
+    saveConfig(config);
+    console.log(`\n  Executor set: ${executor}`);
+    if (config.api_key)
+        console.log(`  API Key:  ***${config.api_key.slice(-4)}`);
+    if (config.model)
+        console.log(`  Model:    ${config.model}`);
+    console.log('');
+}
+// --- Config (show) ---
+export function showConfig() {
+    const config = loadConfig();
+    console.log(`\n  Maclat Config`);
+    console.log(`  ──────────────────────────`);
+    console.log(`  Agent ID:   ${config.agent_id || 'not registered'}`);
+    console.log(`  Agent Name: ${config.agent_name || '-'}`);
+    console.log(`  Gateway:    ${config.gateway_url}`);
+    console.log(`  Executor:   ${config.executor || 'claude-code (default)'}`);
+    console.log(`  API Key:    ${config.api_key ? '***' + config.api_key.slice(-4) : 'not set'}`);
+    console.log(`  Model:      ${config.model || 'default'}`);
+    console.log(`  Max Turns:  ${config.max_turns || '50 (default)'}`);
+    console.log(`  ──────────────────────────\n`);
+}
 // --- Helpers ---
 function getFlag(args, flag) {
     const idx = args.indexOf(flag);
